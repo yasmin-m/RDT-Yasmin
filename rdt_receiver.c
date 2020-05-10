@@ -113,7 +113,6 @@ int main(int argc, char **argv) {
          * sendto: ACK back to the client 
          */
         gettimeofday(&tp, NULL);
-        VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
 
         if (next_seqno != recvpkt->hdr.seqno){
             sndpkt = make_packet(0);
@@ -123,10 +122,12 @@ int main(int argc, char **argv) {
                     (struct sockaddr *) &clientaddr, clientlen) < 0) {
                 error("ERROR in sendto");
             }
-            printf("OUT OF ORDER PACKET \n");
+            VLOG(DEBUG, "%lu, %d, %d   - OUT OF ORDER PACKET", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
+            continue;
         }
 
         else{
+            VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
             fseek(fp, recvpkt->hdr.seqno, SEEK_SET);
             fwrite(recvpkt->data, 1, recvpkt->hdr.data_size, fp);
             sndpkt = make_packet(0);
