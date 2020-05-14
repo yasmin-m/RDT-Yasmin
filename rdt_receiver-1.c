@@ -23,40 +23,28 @@
 tcp_packet *recvpkt;
 tcp_packet *sndpkt;
 
-typedef struct myTcpPacket{
-    int datasize;
-    int seqno;
-    char *data;
-} myTcpPacket;
+int sortPackets(const void *a, const void *b) {
+    tcp_packet *a_ = (tcp_packet *) a; 
+    tcp_packet *b_ = (tcp_packet *) b;
 
-unsigned long hash(char* str){
-    unsigned long hash = 5381;
-    int c;
-
-    while ((c = *str++)){
-        hash = ((hash << 5) + hash) + c;
-    }
-
-    return hash;
-}
-
-int sortPackets(const void *a, const void *b){
-    myTcpPacket *A = (myTcpPacket *) a;
-    myTcpPacket *B = (myTcpPacket *) b;
-
-    if (A->seqno == -1 && B->seqno != -1)
-    {
-        return 1;
-    }
-    if (A->seqno != -1 && B->seqno == -1)
+    // We double check all of the 3 possible cases where one of the packets
+    // is empty, to be completely sure of the ordering we want to impose.
+    if (a_ == NULL && b_ != NULL)
     {
         return -1;
     }
-    if (A->seqno == -1 && B->seqno == -1)
+    // If a_ is NULL and b isn't, return that a is less than b
+    if ( a_ != NULL && b_== NULL)
+    {
+        return 1;
+    }
+    if (a_ == NULL && b_ == NULL)
     {
         return 0;
-    }        
-    return A->seqno - B->seqno; 
+    }     
+     
+    // b is stored earlier in the array than a if positive
+    return a_->hdr.seqno -b_->hdr.seqno; 
 }
 
 int main(int argc, char **argv) {
@@ -120,10 +108,9 @@ int main(int argc, char **argv) {
      */
     VLOG(DEBUG, "epoch time, bytes received, sequence number");
 
-    myTcpPacket packetBuffer[MAX];
+    tcp_packet *packetBuffer[MAX];
     for(int i=0; i<MAX; i++){
-        packetBuffer[i].datasize = -1;
-        packetBuffer[i].seqno = -1;
+        packetBuffer[i] = NULL;
     }
 
     clientlen = sizeof(clientaddr);
@@ -131,18 +118,13 @@ int main(int argc, char **argv) {
 
     // int started = 0;
     int noOfPackets = 0;
-
-    int wait = 1; 
-    fd_set rfds;
-    struct timeval tv;
-    int activity;
+    // clock_t start, stop;
 
     while (1) {
         /*
          * recvfrom: receive a UDP datagram from a client
          */
         //VLOG(DEBUG, "waiting from server \n");
-
         if (recvfrom(sockfd, buffer, MSS_SIZE, 0,
                 (struct sockaddr *) &clientaddr, (socklen_t *)&clientlen) < 0) {
             error("ERROR in recvfrom");
@@ -168,62 +150,33 @@ int main(int argc, char **argv) {
         gettimeofday(&tp, NULL);
 
         if (next_seqno > recvpkt->hdr.seqno){
-            // VLOG(DEBUG, "%lu, %d, %d   - DUPLICATE PACKET", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
+            VLOG(DEBUG, "%lu, %d, %d   - DUPLICATE PACKET", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
         }
 
-        if (next_seqno == recvpkt->hdr.seqno){
-            // VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
-            fseek(fp, recvpkt->hdr.seqno, SEEK_SET);
-            fwrite(recvpkt->data, 1, recvpkt->hdr.data_size, fp);
-            next_seqno = recvpkt->hdr.seqno + recvpkt->hdr.data_size;
+        else{
+            VLOG(DEBUG, "%lu, %d, %d   - PACKET BUFFERED", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
+            packetBuffer[noOfPackets] = recvpkt;
+            noOfPackets++;
+            qsort(packetBuffer, noOfPackets, sizeof(tcp_packet), sortPackets);
 
             int x=noOfPackets;
             for(int i=0; i<x; i++){
-                if (next_seqno == packetBuffer[i].seqno){
-                    fseek(fp, packetBuffer[i].seqno, SEEK_SET);
-                    fwrite(packetBuffer[i].data, 1, packetBuffer[i].datasize, fp);
-                    next_seqno += packetBuffer[i].datasize;
-
-                    packetBuffer[i].datasize = -1;
-                    packetBuffer[i].seqno = -1;
+                printf("noOfPackets: %d\n", noOfPackets);
+                if(packetBuffer[i]==NULL){
+                    printf("NULL\n");
+                }
+                if (next_seqno == packetBuffer[i]->hdr.seqno){
+                    VLOG(DEBUG, "%lu, %d, %d   - FROM BUFFER", tp.tv_sec, packetBuffer[i]->hdr.data_size, packetBuffer[i]->hdr.seqno);
+                    fseek(fp, packetBuffer[i]->hdr.seqno, SEEK_SET);
+                    fwrite(packetBuffer[i]->data, 1, packetBuffer[i]->hdr.data_size, fp);
+                    next_seqno = packetBuffer[i]->hdr.data_size + packetBuffer[i]->hdr.seqno;
+                    packetBuffer[i] = NULL;
                     noOfPackets--;
                 }
             }
 
-            // qsort(packetBuffer, noOfPackets, sizeof(myTcpPacket), sortPackets);
         }
 
-        if (next_seqno < recvpkt->hdr.seqno){
-            if (noOfPackets != MAX){
-                packetBuffer[noOfPackets].datasize = recvpkt->hdr.data_size;
-                packetBuffer[noOfPackets].seqno = recvpkt->hdr.seqno;
-                packetBuffer[noOfPackets].data = malloc(recvpkt->hdr.data_size);
-                memcpy(packetBuffer[noOfPackets].data, recvpkt->data, recvpkt->hdr.data_size);
-                noOfPackets++;
-                qsort(packetBuffer, noOfPackets, sizeof(myTcpPacket), sortPackets);
-                // VLOG(DEBUG, "%lu, %d, %d   - PACKET BUFFERED", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
-            }
-        }
-
-        if (wait==1){
-            FD_ZERO(&rfds);
-            FD_SET(sockfd, &rfds);
-            tv.tv_sec = 0;
-            tv.tv_usec = 200000;
-            activity = select(sockfd + 1, &rfds, NULL, NULL, &tv);
-
-            if (activity == -1){
-                printf("ERROR IN SELECT FUNCTION\n");
-                return 0;
-            }
-
-            if (activity){
-                wait = 0;
-                continue;
-            }
-        }
-
-        wait = 1;
         sndpkt = make_packet(0);
         sndpkt->hdr.ackno = next_seqno;
         sndpkt->hdr.ctr_flags = ACK;
@@ -231,6 +184,43 @@ int main(int argc, char **argv) {
                 (struct sockaddr *) &clientaddr, clientlen) < 0) {
             error("ERROR in sendto");
         }
+
+        // if (next_seqno == recvpkt->hdr.seqno){
+        //     VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, recvpkt->hdr.data_size, recvpkt.hdr.seqno);
+        //     fseek(fp, recvpkt.hdr.seqno, SEEK_SET);
+        //     fwrite(recvpkt.data, 1, recvpkt.hdr.data_size, fp);
+        //     next_seqno = recvpkt.hdr.seqno + recvpkt.hdr.data_size;
+
+        //     int x=noOfPackets;
+        //     for(int i=0; i<x; i++){
+        //         if (next_seqno == packetBuffer[i].hdr.seqno){
+        //             VLOG(DEBUG, "%lu, %d, %d   - FROM BUFFER", tp.tv_sec, packetBuffer[i].hdr.data_size, packetBuffer[i].hdr.seqno);
+        //             fseek(fp, packetBuffer[i].hdr.seqno, SEEK_SET);
+        //             fwrite(packetBuffer[i].data, 1, packetBuffer[i].hdr.data_size, fp);
+        //             next_seqno = packetBuffer[i].hdr.data_size + packetBuffer[i].hdr.seqno;
+        //             packetBuffer[i] = (tcp_packet){0};
+        //             packetBuffer[i].hdr.data_size = -1;
+        //             noOfPackets--;
+        //         }
+        //     }
+
+        //     qsort(packetBuffer, noOfPackets, sizeof(tcp_packet), sortPackets);
+        // }
+
+        // if (next_seqno < recvpkt.hdr.seqno){
+        //     packetBuffer[noOfPackets] = recvpkt;
+        //     noOfPackets++;
+        //     qsort(packetBuffer, noOfPackets, sizeof(tcp_packet), sortPackets);
+        //     VLOG(DEBUG, "%lu, %d, %d   - PACKET BUFFERED", tp.tv_sec, recvpkt.hdr.data_size, recvpkt.hdr.seqno);
+        // }
+
+        // sndpkt = make_packet(0);
+        // sndpkt->hdr.ackno = next_seqno;
+        // sndpkt->hdr.ctr_flags = ACK;
+        // if (sendto(sockfd, sndpkt, TCP_HDR_SIZE, 0, 
+        //         (struct sockaddr *) &clientaddr, clientlen) < 0) {
+        //     error("ERROR in sendto");
+        // }
     }
 
     return 0;
