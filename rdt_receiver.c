@@ -165,17 +165,19 @@ int main(int argc, char **argv) {
                 error("ERROR in sendto");
             }
             fclose(fp);
-            // printf("End Of File has been reached\n");
+            printf("End Of File has been reached\n");
             break;
         }
 
+        gettimeofday(&tp, NULL);
+        // VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
         if (next_seqno > recvpkt->hdr.seqno){
-            // VLOG(DEBUG, "%lu, %d, %d   - DUPLICATE PACKET", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
+            VLOG(DEBUG, "%lu, %d, %d   - DUPLICATE PACKET", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
         }
 
         //if the packet recieved has the same sequence number as the next one expected then
         if (next_seqno == recvpkt->hdr.seqno){
-            // VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
+            VLOG(DEBUG, "%lu, %d, %d", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
             // write it to file
             fseek(fp, recvpkt->hdr.seqno, SEEK_SET);
             fwrite(recvpkt->data, 1, recvpkt->hdr.data_size, fp);
@@ -231,7 +233,7 @@ int main(int argc, char **argv) {
                 //sort the elements of the buffer from smallest to largest seqno, 
                 //with empty packets being at the end
                 qsort(packetBuffer, MAX, sizeof(myTcpPacket), sortPackets);
-                // VLOG(DEBUG, "%lu, %d, %d   - PACKET BUFFERED", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
+                VLOG(DEBUG, "%lu, %d, %d   - PACKET BUFFERED", tp.tv_sec, recvpkt->hdr.data_size, recvpkt->hdr.seqno);
             }
 
             sndpkt = make_packet(0);

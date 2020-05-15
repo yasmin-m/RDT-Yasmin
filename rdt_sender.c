@@ -64,7 +64,7 @@ void resend_packets(int sig)
 {
     if (sig == SIGALRM)
     {
-        // VLOG(INFO, "Timout happend, resending packet %d", rsndpkt->hdr.seqno);
+        VLOG(INFO, "Timout happend, resending packet %d", rsndpkt->hdr.seqno);
         if(sendto(sockfd, rsndpkt, TCP_HDR_SIZE + get_data_size(rsndpkt), 0, 
                     ( const struct sockaddr *)&serveraddr, serverlen) < 0)
         {
@@ -212,7 +212,7 @@ int main (int argc, char **argv)
             //if the end of file has been reached, store its size and set EoF to 1
             if ( len <= 0)
             {
-                // printf("End of file has been reached\n");
+                printf("End of file has been reached\n");
                 file_length = last_packet_sent;
                 end_of_file=1;
                 break;
@@ -221,8 +221,8 @@ int main (int argc, char **argv)
             //send the packet with size len and data in the readbuffer, and seqno equal to lastpacketsent
             send_packet(len, last_packet_sent, readbuffer);
 
-            // VLOG(DEBUG, "Sending packet %d to %s", 
-                    // last_packet_sent, inet_ntoa(serveraddr.sin_addr));
+            VLOG(DEBUG, "Sending packet %d to %s", 
+                    last_packet_sent, inet_ntoa(serveraddr.sin_addr));
 
             //update last packet send
             last_packet_sent += len;          
@@ -255,7 +255,7 @@ int main (int argc, char **argv)
                 init_timer(delay, resend_packets);
                 //start a clock that will measure the RTT
                 gettimeofday(&start, NULL);
-                // printf("\nTIMEOUT DELAY: %.3f\n", delay);
+                printf("\nTIMEOUT DELAY: %.3f\n", delay);
 
                 //start the timer
                 start_timer();
@@ -269,13 +269,14 @@ int main (int argc, char **argv)
             }
 
             recvpkt = (tcp_packet *)pktbuffer;
-            // printf("ACK no: %d \n", recvpkt->hdr.ackno);
+            printf("ACK no: %d \n", recvpkt->hdr.ackno);
             // if there's a negative acknowledgement, that indicates that the receiver received the last packet.
             //in that case break everything
             if (recvpkt->hdr.ackno < 0){
                 stop_timer();
                 fclose(cwnd);
                 fclose(fp);
+                free(rsndpkt);
                 break_all=1;
                 break;
             }
@@ -307,7 +308,7 @@ int main (int argc, char **argv)
                 else{
                     getRTT = 1;
                 }
-                // printf("Packet Received\n");
+                printf("Packet Received\n");
                 //If in slow start, increase window size by 1
                 if (slowStart){
                     window_size++;
@@ -344,7 +345,7 @@ int main (int argc, char **argv)
                 break;
             }
 
-            // printf("Expecting ACK %d \n", next_seqno);
+            printf("Expecting ACK %d \n", next_seqno);
             // otherwise its a duplicate acknowledgement
             duplicateAcks++;
             // do not start the timer on the next round
@@ -357,7 +358,7 @@ int main (int argc, char **argv)
                 startTimer=1;
                 // fast retransmit
 
-                // VLOG(DEBUG, "Resending packet %d to %s", send_base, inet_ntoa(serveraddr.sin_addr));
+                VLOG(DEBUG, "Resending packet %d to %s", send_base, inet_ntoa(serveraddr.sin_addr));
                 if(sendto(sockfd, rsndpkt, TCP_HDR_SIZE + get_data_size(rsndpkt), 0, 
                             ( const struct sockaddr *)&serveraddr, serverlen) < 0)
                 {
