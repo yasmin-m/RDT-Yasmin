@@ -37,6 +37,12 @@ Plotting_CWND.py. in the same directory as the CWND.csv. By default, CWND.csv is
 the same file as the rdt_sender file, which is compiled in a seperate obj directory.
 Therefore, Plotting_CWND.py would have to be moved to the obj directory.
 
+##Plotting throughput
+
+For plotting throughput, I used helpful.py. To obtain the experiment file, simply redirect the stderr
+output of the receiver using 2> to a file ending with _receiver.csv. This was then plotted along with
+the tracefile
+
 ##Testing
 
 For testing, 5 files of various sizes and types were used, and their MD5 hashes were compared. In
