@@ -41,7 +41,7 @@ Therefore, Plotting_CWND.py would have to be moved to the obj directory.
 
 For plotting throughput, I used helpful.py. To obtain the experiment file, simply redirect the stderr
 output of the receiver using 2> to a file ending with _receiver.csv. This was then plotted along with
-the tracefile
+the tracefile. In order and buffered packages are included in the throughput, but not duplicate packages.
 
 ##Testing
 
