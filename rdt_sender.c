@@ -83,7 +83,7 @@ void resend_packets(int sig)
         mtime = ((secs)*1000 + usecs/1000.0); //get time in milliseconds
         fprintf(cwnd, "%ld,%d,%d\n", mtime, (int) window_size, ssthresh); //store in file
         //if a timeout happened, increase the timer by a factor of 2, known as timer back-off, according to RFC6298
-        estimatedRTT=2*estimatedRTT;
+        // estimatedRTT=2*estimatedRTT;
 
     }
 }
